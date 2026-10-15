@@ -1,0 +1,18 @@
+{
+  "name": "Solaria Resort Staff Booking",
+  "short_name": "Solaria Staff",
+  "description": "Universal Android staff booking system for Solaria Eco Luxury Resort",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#FAF8F5",
+  "theme_color": "#2C4A3E",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%232C4A3E'/><circle cx='50' cy='50' r='24' fill='%23EADBC8'/><path d='M35 55 L50 35 L65 55 Z' fill='%232C4A3E'/><path d='M42 55 L50 42 L58 55 Z' fill='%23EADBC8'/></svg>",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Solaria Resort - Staff Booking Console</title>
+  
+  <!-- Universal Android Viewport Configuration -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
+  <meta name="theme-color" content="#2C4A3E">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="format-detection" content="telephone=no">
+
+  <!-- PWA Manifest for Android Chrome Add to Home Screen -->
+  <link rel="manifest" href="manifest.json">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Ultra-Compatible Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+
+  <!-- Paho MQTT Library (WebSocket based - 100% compatible with Android 4.4+) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+
+  <!-- Optional Firebase Compat SDK for direct Firestore backend -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+
+  <!-- Floating Toast Notifications -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Main Application Container -->
+  <div id="app-container">
+
+    <!-- Top App Header -->
+    <header class="app-header">
+      <div class="brand-section">
+        <div class="brand-logo-icon">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 3L2 19h20L12 3zm0 4.5l5.5 8.8h-11L12 7.5z"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>Solaria Resort</h1>
+          <span>Staff Booking Desk</span>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <!-- Live Realtime Sync Status Indicator -->
+        <div class="sync-indicator" title="Real-time multi-device sync status">
+          <span class="sync-dot"></span>
+          <span id="sync-status-text">Cloud Sync</span>
+        </div>
+
+        <!-- Current Staff Badge (Clickable) -->
+        <div class="staff-badge" id="header-staff-badge" title="Click to view staff profile or switch staff">
+          <div class="staff-avatar" id="header-staff-avatar">S1</div>
+          <div class="staff-info-inline">
+            <span class="staff-name" id="header-staff-name">Staff 1</span>
+            <span class="staff-role" id="header-staff-role">Front Desk</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ====================================================================
+         VIEW 1: DASHBOARD
+         ==================================================================== -->
+    <main id="view-dashboard" class="tab-view active">
+      <!-- Hero Welcome & Stats Banner -->
+      <section class="dashboard-hero">
+        <div class="hero-top">
+          <div class="greeting-text">
+            <h2>Luxury Haven Overview</h2>
+            <p>Serene Valley & Ridge Sanctuary • Staff Console</p>
+          </div>
+          <div class="date-pill-hero" id="dash-hero-date">Today</div>
+        </div>
+
+        <div class="stat-grid">
+          <div class="stat-chip">
+            <div class="stat-number" id="dash-stat-total">9</div>
+            <div class="stat-label">Total Rooms</div>
+          </div>
+          <div class="stat-chip">
+            <div class="stat-number" style="color: #A7F3D0;" id="dash-stat-avail">9</div>
+            <div class="stat-label">Available</div>
+          </div>
+          <div class="stat-chip">
+            <div class="stat-number" style="color: #FECACA;" id="dash-stat-booked">0</div>
+            <div class="stat-label">Booked</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Room Categories Header -->
+      <div class="section-title">
+        <div>
+          <h3>Room Categories</h3>
+          <span class="subtitle">Real-time status for selected calendar date</span>
+        </div>
+        <button type="button" class="btn-view-matrix" onclick="window.app.switchView('matrix')" style="font-size: 11.5px; padding: 8px 12px;">
+          Seat Matrix
+        </button>
+      </div>
+
+      <!-- Category Cards (Valley Cottages, Hill Top, Dormitory - No Prices Shown) -->
+      <div class="category-grid" id="dashboard-category-cards">
+        <!-- Rendered dynamically by app.js -->
+      </div>
+    </main>
+
+    <!-- ====================================================================
+         VIEW 2: BOOKMYSHOW-STYLE INTERACTIVE SEAT / ROOM MATRIX
+         ==================================================================== -->
+    <main id="view-matrix" class="tab-view">
+      <div class="bms-container">
+        <!-- Date Selector Strip (Next 14 Days) -->
+        <div class="date-strip-header">
+          <div>
+            <h3>Select Booking Date</h3>
+            <span style="font-size: 11.5px; color: var(--text-muted);">Tap a date to inspect live room occupancy</span>
+          </div>
+          <div>
+            <input type="date" id="direct-date-input" style="padding: 6px 10px; background: #FAF8F5; border: 1.5px solid #ECE5DC; border-radius: 8px; font-size: 12px; font-weight: 700; color: #2C4A3E;">
+          </div>
+        </div>
+
+        <div class="date-pills-scroll" id="date-pills-container">
+          <!-- Rendered dynamically by app.js -->
+        </div>
+
+        <!-- BookMyShow Screen Horizon Indicator -->
+        <div class="resort-screen-bar">
+          <div class="screen-curve"></div>
+          <div class="screen-label">🌿 Serene Mountain Ridge & Sunrise Horizon 🌿</div>
+        </div>
+
+        <!-- Color Legend (BookMyShow Style) -->
+        <div class="bms-legend">
+          <div class="legend-item">
+            <div class="legend-box avail"></div>
+            <span>Available (Green)</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-box booked"></div>
+            <span>Not Available (Red)</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-box selected"></div>
+            <span>Selected (Gold)</span>
+          </div>
+        </div>
+
+        <!-- Interactive Room Matrix Grid -->
+        <div id="bms-matrix-content">
+          <!-- Rendered dynamically with 6 Valley Cottages, 2 Hill Top Rooms, 1 Dormitory -->
+        </div>
+      </div>
+
+      <!-- Multi-Day Timeline Matrix (Gantt View) -->
+      <div class="timeline-matrix-card">
+        <div style="padding: 14px 16px; border-bottom: 1px solid #ECE5DC; display: flex; align-items: center; justify-content: space-between;">
+          <h4 style="font-family: 'Playfair Display', Georgia, serif; font-size: 16px; color: #2C4A3E; font-weight: 700;">
+            7-Day Room Occupancy Overview
+          </h4>
+          <span style="font-size: 11px; color: #6B726C;">Tap any cell to book or view</span>
+        </div>
+        <div class="timeline-table-wrapper">
+          <table class="timeline-table">
+            <thead>
+              <tr id="timeline-header-row"></tr>
+            </thead>
+            <tbody id="timeline-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Sticky Selection Action Bar -->
+      <div id="selection-action-bar" class="selection-action-bar" style="display: none;"></div>
+    </main>
+
+    <!-- ====================================================================
+         VIEW 3: SEARCH & FILTER
+         ==================================================================== -->
+    <main id="view-search" class="tab-view">
+      <div class="section-title">
+        <div>
+          <h3>Booking Directory</h3>
+          <span class="subtitle">Search by guest, room, or date</span>
+        </div>
+      </div>
+
+      <div class="filter-bar">
+        <div class="form-group" style="margin-bottom: 12px;">
+          <input type="text" id="search-query" class="input-field" placeholder="Search by guest name, room ID (e.g. VC-2) or staff..." oninput="window.app.renderSearchAndFilter()">
+        </div>
+
+        <!-- Category Pills Filter -->
+        <div style="margin-bottom: 10px;">
+          <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; margin-bottom: 6px; color: #6B726C;">Category</div>
+          <div class="filter-chip-group">
+            <button type="button" class="filter-chip category-filter active" data-category="ALL" onclick="window.setCategoryFilter(this, 'ALL')">All Categories</button>
+            <button type="button" class="filter-chip category-filter" data-category="Valley Cottages" onclick="window.setCategoryFilter(this, 'Valley Cottages')">Valley Cottages</button>
+            <button type="button" class="filter-chip category-filter" data-category="Hill Top Rooms" onclick="window.setCategoryFilter(this, 'Hill Top Rooms')">Hill Top Rooms</button>
+            <button type="button" class="filter-chip category-filter" data-category="Dormitory" onclick="window.setCategoryFilter(this, 'Dormitory')">Dormitory</button>
+          </div>
+        </div>
+
+        <!-- Status Filter -->
+        <div>
+          <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; margin-bottom: 6px; color: #6B726C;">Stay Date</div>
+          <div class="filter-chip-group">
+            <button type="button" class="filter-chip status-filter active" data-status="ALL" onclick="window.setStatusFilter(this, 'ALL')">All Dates</button>
+            <button type="button" class="filter-chip status-filter" data-status="TODAY" onclick="window.setStatusFilter(this, 'TODAY')">Selected Date Only</button>
+            <button type="button" class="filter-chip status-filter" data-status="UPCOMING" onclick="window.setStatusFilter(this, 'UPCOMING')">Upcoming Only</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Search Results List -->
+      <div id="search-results-list"></div>
+    </main>
+
+    <!-- ====================================================================
+         VIEW 4: HISTORY & AUDIT LOGS
+         ==================================================================== -->
+    <main id="view-history" class="tab-view">
+      <div class="section-title">
+        <div>
+          <h3>Staff Activity Log</h3>
+          <span class="subtitle">Complete audit trail of bookings & cancellations</span>
+        </div>
+      </div>
+
+      <div class="history-timeline" id="history-timeline-list"></div>
+    </main>
+
+    <!-- ====================================================================
+         VIEW 5: STAFF PROFILE & REALTIME SYNC SETTINGS
+         ==================================================================== -->
+    <main id="view-profile" class="tab-view">
+      <div class="section-title">
+        <div>
+          <h3>Staff Portal & Sync</h3>
+          <span class="subtitle">Authentication, customizable profiles & real-time sync</span>
+        </div>
+      </div>
+
+      <!-- Active Staff Identity Card -->
+      <div class="settings-card">
+        <h4 id="profile-staff-name">Staff 1</h4>
+        <p id="profile-staff-role" style="font-size: 12.5px; color: #6B726C;">Front Desk Associate • Full Booking & Cancellation Permissions</p>
+
+        <div style="margin-top: 16px;">
+          <label class="form-label">Active Staff Account</label>
+          <div class="staff-switch-row">
+            <div class="staff-switch-card active" data-staff="Staff1" onclick="window.app.authenticateStaff('Staff1')">
+              <div class="staff-avatar" style="width: 34px; height: 34px; font-size: 13px;">S1</div>
+              <strong style="font-size: 13px; color: #2C4A3E;">Staff 1</strong>
+              <span id="staff1-card-label" style="font-size: 11px; color: #6B726C;">Staff 1</span>
+            </div>
+            <div class="staff-switch-card" data-staff="Staff2" onclick="window.app.authenticateStaff('Staff2')">
+              <div class="staff-avatar" style="width: 34px; height: 34px; font-size: 13px; background: #3D6656;">S2</div>
+              <strong style="font-size: 13px; color: #2C4A3E;">Staff 2</strong>
+              <span id="staff2-card-label" style="font-size: 11px; color: #6B726C;">Staff 2</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Customize Current Staff Name -->
+        <div style="margin-top: 18px; padding-top: 16px; border-top: 1px dashed #ECE5DC;">
+          <label class="form-label">Customize Your Staff Name & Role</label>
+          <div class="form-grid-2" style="margin-bottom: 10px;">
+            <div>
+              <input type="text" id="edit-staff-name-input" class="input-field" placeholder="e.g. Sarah" style="font-size: 13px; padding: 10px;">
+            </div>
+            <div>
+              <input type="text" id="edit-staff-role-input" class="input-field" placeholder="e.g. Front Desk Lead" style="font-size: 13px; padding: 10px;">
+            </div>
+          </div>
+          <button type="button" class="btn-primary" style="padding: 10px 14px; font-size: 12px; width: 100%;" onclick="window.saveCurrentStaffProfile()">
+            Update Staff Display Name
+          </button>
+        </div>
+
+        <button type="button" class="btn-danger-outline" style="margin-top: 16px;" onclick="document.getElementById('modal-login').className += ' active'">
+          Log Out / Switch Account
+        </button>
+      </div>
+
+      <!-- Realtime Multi-Device Sync Health -->
+      <div class="settings-card">
+        <h4>⚡ Real-Time Multi-Device Sync</h4>
+        <p style="font-size: 12.5px; color: #6B726C; margin-bottom: 14px;">
+          Changes are instantly broadcasted across tabs and connected Android/desktop devices via WebSocket mesh.
+        </p>
+        
+        <div style="display: flex;">
+          <button type="button" class="btn-primary" style="padding: 10px 16px; font-size: 12px; margin-right: 8px; flex: 1;" onclick="window.testCloudSyncPing()">
+            Test Sync Ping
+          </button>
+          <button type="button" class="btn-danger-outline" style="padding: 10px 16px; font-size: 12px; margin-top: 0; flex: 1;" onclick="window.app.clearAllBookings()">
+            Clear All Bookings
+          </button>
+        </div>
+      </div>
+
+      <!-- Firebase / Supabase Integration Accordion -->
+      <div class="settings-card">
+        <h4>🔥 Firebase / Supabase Cloud Backend</h4>
+        <p style="font-size: 12px; color: #6B726C; margin-bottom: 12px;">
+          Plug in your own Google Firebase Firestore or Supabase project keys:
+        </p>
+
+        <div class="form-group">
+          <label class="form-label">Firebase API Key</label>
+          <input type="text" id="cfg-firebase-key" class="input-field" placeholder="AIzaSy...">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Firebase Project ID</label>
+          <input type="text" id="cfg-firebase-project" class="input-field" placeholder="my-resort-app">
+        </div>
+        <button type="button" class="btn-primary" style="padding: 10px; font-size: 12px;" onclick="window.connectFirebase()">
+          Connect Firebase Firestore
+        </button>
+      </div>
+    </main>
+
+    <!-- ====================================================================
+         BOTTOM NAVIGATION BAR (Thumb-friendly for Android)
+         ==================================================================== -->
+    <nav class="bottom-nav">
+      <button type="button" class="nav-item active" data-view="dashboard" aria-label="Dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+          <polyline points="9 22 9 12 15 12 15 22"></polyline>
+        </svg>
+        <span>Dashboard</span>
+      </button>
+
+      <button type="button" class="nav-item" data-view="matrix" aria-label="Room Matrix">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect>
+          <polyline points="17 2 12 7 7 2"></polyline>
+        </svg>
+        <span>Matrix</span>
+      </button>
+
+      <button type="button" class="nav-item" data-view="search" aria-label="Search Bookings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <span>Search</span>
+      </button>
+
+      <button type="button" class="nav-item" data-view="history" aria-label="Activity History">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <polyline points="12 6 12 12 16 14"></polyline>
+        </svg>
+        <span>Logs</span>
+      </button>
+
+      <button type="button" class="nav-item" data-view="profile" aria-label="Staff Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+          <circle cx="12" cy="7" r="4"></circle>
+        </svg>
+        <span>Staff</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- ====================================================================
+       MODAL 1: BOOKING CREATION DRAWER (No price fields)
+       ==================================================================== -->
+  <div id="modal-booking" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h3 id="book-room-title">Book Room</h3>
+          <span id="book-room-category" style="font-size: 12px; color: #8E7051; font-weight: 700;">Category</span>
+        </div>
+        <button type="button" class="btn-close-modal" onclick="window.app.closeBookingModal()" aria-label="Close">✕</button>
+      </div>
+
+      <form id="booking-form" onsubmit="window.app.confirmBooking(event)">
+        <input type="hidden" id="book-room-id">
+
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label">Booking Date</label>
+            <input type="date" id="book-date-input" class="input-field" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Booked By Staff</label>
+            <input type="text" id="book-staff-name" class="input-field" readonly style="background: #F6F2EC; font-weight: 700;">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Guest Full Name *</label>
+          <input type="text" id="book-guest-name" class="input-field" placeholder="e.g. Lord Alistair Montgomery" required autofocus>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Guest Phone / Contact</label>
+          <input type="tel" id="book-guest-phone" class="input-field" placeholder="e.g. +1 555-0192">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Special Requests / Notes</label>
+          <textarea id="book-notes" class="input-field" rows="2" placeholder="e.g. Extra pillows, late check-in"></textarea>
+        </div>
+
+        <button type="submit" class="btn-primary" style="margin-top: 10px;">
+          Confirm & Mark as Booked
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ====================================================================
+       MODAL 2: BOOKING DETAILS & CANCELLATION
+       ==================================================================== -->
+  <div id="modal-booking-details" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h3 id="detail-room-title">Room Details</h3>
+          <span id="detail-category" style="font-size: 12px; color: #8E7051; font-weight: 700;">Category</span>
+        </div>
+        <button type="button" class="btn-close-modal" onclick="window.app.closeDetailsModal()" aria-label="Close">✕</button>
+      </div>
+
+      <div style="background: #FAF8F5; border-radius: 14px; padding: 14px; margin-bottom: 16px; border: 1px solid #ECE5DC;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+          <span style="font-size: 12px; color: #6B726C;">Guest Name:</span>
+          <strong id="detail-guest-name" style="color: #2C4A3E; font-size: 14px;">-</strong>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+          <span style="font-size: 12px; color: #6B726C;">Stay Date:</span>
+          <strong id="detail-date" style="font-size: 13px;">-</strong>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+          <span style="font-size: 12px; color: #6B726C;">Phone:</span>
+          <span id="detail-guest-phone" style="font-size: 13px;">-</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+          <span style="font-size: 12px; color: #6B726C;">Booked By:</span>
+          <span id="detail-booked-by" style="font-size: 12px; font-weight: 700;">-</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+          <span style="font-size: 12px; color: #6B726C;">Booking Ref:</span>
+          <span id="detail-booking-id" style="font-size: 11px; font-family: monospace; background: #fff; padding: 2px 6px; border-radius: 4px;">-</span>
+        </div>
+        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #ECE5DC;">
+          <span style="font-size: 11.5px; color: #6B726C; display: block; margin-bottom: 2px;">Notes:</span>
+          <p id="detail-notes" style="font-size: 12.5px; font-style: italic; color: #232724;">-</p>
+        </div>
+      </div>
+
+      <button type="button" id="btn-cancel-booking-action" class="btn-danger-outline">
+        Cancel This Booking
+      </button>
+    </div>
+  </div>
+
+  <!-- ====================================================================
+       MODAL 3: STAFF AUTHENTICATION / LOGIN
+       ==================================================================== -->
+  <div id="modal-login" class="modal-overlay">
+    <div class="modal-card">
+      <div style="text-align: center; margin-bottom: 20px;">
+        <div style="width: 50px; height: 50px; margin: 0 auto 10px; border-radius: 14px; background: #2C4A3E; display: flex; align-items: center; justify-content: center; color: #fff;">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor">
+            <path d="M12 3L2 19h20L12 3zm0 4.5l5.5 8.8h-11L12 7.5z"/>
+          </svg>
+        </div>
+        <h2 style="font-family: 'Playfair Display', Georgia, serif; font-size: 22px; color: #2C4A3E;">Solaria Staff Login</h2>
+        <p style="font-size: 12.5px; color: #6B726C;">Access resort booking console & room inventory</p>
+      </div>
+
+      <form id="login-form">
+        <div class="form-group">
+          <label class="form-label">Staff Username</label>
+          <input type="text" id="login-username" class="input-field" placeholder="Staff1 or Staff2" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Your Name (Optional)</label>
+          <input type="text" id="login-custom-name" class="input-field" placeholder="e.g. Sarah / Alex / Staff 1">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password / PIN</label>
+          <input type="password" id="login-password" class="input-field" placeholder="resort123" required>
+        </div>
+
+        <button type="submit" class="btn-primary" style="margin-top: 14px;">
+          Log In to Console
+        </button>
+      </form>
+
+      <div class="quick-login-pills">
+        <p>⚡ Quick 1-Click Login</p>
+        <div class="pill-row">
+          <button type="button" class="btn-pill-staff btn-quick-staff" data-staff="Staff1">
+            <span>👤 Staff 1</span>
+          </button>
+          <button type="button" class="btn-pill-staff btn-quick-staff" data-staff="Staff2">
+            <span>👤 Staff 2</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="realtime-sync.js"></script>
+  <script src="firebase-setup.js"></script>
+  <script src="app.js"></script>
+
+  <!-- Global UI helpers for inline handlers -->
+  <script>
+    window.setCategoryFilter = function(btn, cat) {
+      var chips = document.querySelectorAll('.filter-chip.category-filter');
+      for (var i = 0; i < chips.length; i++) {
+        chips[i].className = chips[i].className.replace(/\bactive\b/, '').trim();
+      }
+      btn.className += ' active';
+      window.app.renderSearchAndFilter();
+    };
+
+    window.setStatusFilter = function(btn, st) {
+      var chips = document.querySelectorAll('.filter-chip.status-filter');
+      for (var i = 0; i < chips.length; i++) {
+        chips[i].className = chips[i].className.replace(/\bactive\b/, '').trim();
+      }
+      btn.className += ' active';
+      window.app.renderSearchAndFilter();
+    };
+
+    window.saveCurrentStaffProfile = function() {
+      var name = (document.getElementById('edit-staff-name-input').value || '').trim();
+      var role = (document.getElementById('edit-staff-role-input').value || '').trim();
+      if (!name) {
+        alert('Please enter a display name for the staff member');
+        return;
+      }
+      window.app.updateStaffProfile(window.app.currentStaff.username, name, role);
+    };
+
+    window.testCloudSyncPing = function() {
+      if (window.realtimeSync) {
+        window.realtimeSync.publish({
+          type: 'STAFF_PRESENCE',
+          staff: window.app.currentStaff ? window.app.currentStaff.name : 'Staff',
+          device: navigator.userAgent.indexOf('Android') !== -1 ? 'Android Phone' : 'Desktop Browser'
+        });
+      }
+      window.app.showToast('🚀 Broadcast test ping sent to all devices!');
+    };
+
+    window.connectFirebase = function() {
+      var apiKey = (document.getElementById('cfg-firebase-key').value || '').trim();
+      var projectId = (document.getElementById('cfg-firebase-project').value || '').trim();
+      if (!apiKey || !projectId) {
+        alert('Please enter both Firebase API Key and Project ID');
+        return;
+      }
+      if (window.FirebaseSync) {
+        var success = window.FirebaseSync.init({ apiKey: apiKey, projectId: projectId });
+        if (success) {
+          window.app.showToast('🔥 Firebase Firestore connected successfully!');
+        } else {
+          alert('Failed to initialize Firebase. Please check your credentials.');
+        }
+      }
+    };
+  </script>
+</body>
+</html>
